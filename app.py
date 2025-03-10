@@ -89,8 +89,8 @@ def create_meeting_table(supabase, table_name, meeting_name, max_number=999, sel
         if selected_forms:
             for form_id in selected_forms:
                 supabase.table("meeting_forms").insert({
-                    "meeting_id": str(meeting_id),  # Garantir que meeting_id seja string (UUID)
-                    "form_id": str(form_id)         # Garantir que form_id seja string (UUID)
+                    "meeting_id": meeting_id,
+                    "form_id": form_id
                 }).execute()
         
         return True
@@ -124,7 +124,7 @@ def get_available_forms(supabase):
 def get_forms_for_meeting(supabase, meeting_id):
     """Recupera os formulários associados a uma reunião específica."""
     try:
-        response = supabase.table("meeting_forms").select("form_id").eq("meeting_id", str(meeting_id)).execute()
+        response = supabase.table("meeting_forms").select("form_id").eq("meeting_id", meeting_id).execute()
         form_ids = [row["form_id"] for row in response.data]
         if form_ids:
             forms = supabase.table("forms_metadata").select("*").in_("id", form_ids).execute()
@@ -337,7 +337,7 @@ elif mode == "participant_form" and table_name_from_url:
             if all(responses.values()):
                 for q_id, answer in responses.items():
                     response_data = {
-                        "form_id": str(form_id),  # Garantir que form_id seja string (UUID)
+                        "form_id": form_id,
                         "participant_id": participant_id,
                         "question_id": q_id,
                         "answer": str(answer)
@@ -644,7 +644,7 @@ else:
 
                     for q in st.session_state['questions']:
                         question_data = {
-                            "form_id": str(form_id),  # Garantir que form_id seja string (UUID)
+                            "form_id": form_id,
                             "question_text": q['text'],
                             "question_type": q['type'],
                             "correct_answer": q['correct']
