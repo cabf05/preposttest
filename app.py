@@ -547,13 +547,31 @@ else:
                     response_data = []
                     for resp in responses.data:
                         form = next((f for f in forms if f["id"] == resp["form_id"]), None)
-                        question = supabase.table("questions").select("question_text").eq("id", resp["question_id"]).execute().data[0]
+                        question = supabase.table("questions").select("question_text, question_type, correct_answer").eq("id", resp["question_id"]).execute().data[0]
+                        
+                        # Determinar a resposta exibida
+                        answer_display = resp["answer"]
+                        is_correct = None
+                        if question["question_type"] == "multiple_choice":
+                            # Buscar o texto da opção escolhida
+                            option = supabase.table("options").select("option_text").eq("id", resp["answer"]).execute()
+                            answer_display = option.data[0]["option_text"] if option.data else resp["answer"]
+                            
+                            # Verificar se a resposta está correta
+                            if question["correct_answer"]:
+                                is_correct = "✅ Correta" if resp["answer"] == question["correct_answer"] else "❌ Incorreta"
+                        elif question["question_type"] == "text" and question["correct_answer"]:
+                            # Para perguntas de texto, comparar diretamente com a resposta correta
+                            is_correct = "✅ Correta" if resp["answer"].lower() == question["correct_answer"].lower() else "❌ Incorreta"
+
                         response_data.append({
                             "Participante": resp["participant_id"],
                             "Formulário": form["form_name"] if form else "Desconhecido",
                             "Pergunta": question["question_text"],
-                            "Resposta": resp["answer"]
+                            "Resposta": answer_display,
+                            "Correta": is_correct if is_correct is not None else "N/A"
                         })
+                    
                     df = pd.DataFrame(response_data)
                     st.dataframe(df)
                     
