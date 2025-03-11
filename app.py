@@ -596,14 +596,10 @@ else:
                 st.session_state['show_options_form'] = False
             if 'current_question_index' not in st.session_state:
                 st.session_state['current_question_index'] = None
-            if 'question_text' not in st.session_state:
-                st.session_state['question_text'] = ""
-            if 'option_text' not in st.session_state:
-                st.session_state['option_text'] = ""
 
             st.markdown("<h3 class='sub-header'>Adicionar Pergunta</h3>", unsafe_allow_html=True)
             question_type = st.selectbox("Tipo da Pergunta", ["Texto", "Múltipla Escolha"], key="q_type")
-            question_text = st.text_input("Texto da Pergunta", value=st.session_state['question_text'], placeholder="Digite o texto da pergunta", key="q_text")
+            question_text = st.text_input("Texto da Pergunta", key="q_text")
 
             if st.form_submit_button("Adicionar Pergunta"):
                 if question_text:
@@ -620,18 +616,16 @@ else:
                         st.session_state['current_options'] = []
                     else:
                         st.session_state['show_options_form'] = False
-                    st.session_state['question_text'] = ""
                     st.success(f"Pergunta '{question_text}' adicionada!")
                 else:
                     st.warning("O texto da pergunta é obrigatório.")
 
             if st.session_state['show_options_form'] and st.session_state['current_question_index'] is not None:
                 st.markdown("<h3 class='sub-header'>Adicionar Opções</h3>", unsafe_allow_html=True)
-                option_text = st.text_input("Texto da Opção", value=st.session_state['option_text'], placeholder="Digite o texto da opção", key="opt_text")
+                option_text = st.text_input("Texto da Opção", key="opt_text")
                 if st.form_submit_button("Adicionar Opção"):
                     if option_text:
                         st.session_state['current_options'].append(option_text)
-                        st.session_state['option_text'] = ""
                         st.success(f"Opção '{option_text}' adicionada!")
                     else:
                         st.warning("O texto da opção é obrigatório.")
@@ -651,31 +645,17 @@ else:
                         st.session_state['show_options_form'] = False
                         st.session_state['current_question_index'] = None
                         st.session_state['current_options'] = []
-                        st.session_state['option_text'] = ""
                         st.success("Opções e resposta correta (se selecionada) salvas!")
 
             if st.session_state['questions']:
                 st.markdown("<h3 class='sub-header'>Perguntas Adicionadas</h3>", unsafe_allow_html=True)
                 for i, q in enumerate(st.session_state['questions']):
-                    col1, col2 = st.columns([4, 1])
-                    with col1:
-                        st.write(f"{i+1}. {q['text']} ({q['type']})")
-                        if q['type'] == 'multiple_choice' and q['options']:
-                            st.write("Opções:", ", ".join(q['options']))
-                            st.write(f"Correta: {q['correct'] if q['correct'] else 'Nenhuma'}")
-                        elif q['type'] == 'text':
-                            st.write(f"Correta: {q['correct'] if q['correct'] else 'Nenhuma'}")
-                    with col2:
-                        if st.button("Deletar", key=f"del_{i}"):
-                            st.session_state['questions'].pop(i)
-                            if st.session_state['current_question_index'] == i:
-                                st.session_state['show_options_form'] = False
-                                st.session_state['current_question_index'] = None
-                                st.session_state['current_options'] = []
-                            elif st.session_state['current_question_index'] is not None and st.session_state['current_question_index'] > i:
-                                st.session_state['current_question_index'] -= 1
-                            st.success(f"Pergunta {i+1} deletada!")
-                            st.rerun()
+                    st.write(f"{i+1}. {q['text']} ({q['type']})")
+                    if q['type'] == 'multiple_choice' and q['options']:
+                        st.write("Opções:", ", ".join(q['options']))
+                        st.write(f"Correta: {q['correct'] if q['correct'] else 'Nenhuma'}")
+                    elif q['type'] == 'text':
+                        st.write(f"Correta: {q['correct'] if q['correct'] else 'Nenhuma'}")
 
             if st.form_submit_button("Criar Formulário"):
                 if form_name and st.session_state['questions']:
@@ -708,8 +688,6 @@ else:
                     st.session_state['show_options_form'] = False
                     st.session_state['current_question_index'] = None
                     st.session_state['current_options'] = []
-                    st.session_state['question_text'] = ""
-                    st.session_state['option_text'] = ""
                     st.session_state["selected_form_table"] = table_name
                     st.session_state["page"] = "Compartilhar Link do Formulário"
                     st.rerun()
