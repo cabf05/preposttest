@@ -4,7 +4,6 @@ import random
 import time
 import io
 import uuid
-from PIL import Image, ImageDraw, ImageFont
 import pandas as pd
 from datetime import datetime
 import os
@@ -16,21 +15,82 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- Estilização CSS ---
+# --- Estilização CSS Atualizada ---
 st.markdown("""
 <style>
-    .main-header {text-align: center; margin-bottom: 30px;}
-    .number-display {font-size: 72px; text-align: center; margin: 30px 0;}
-    .success-msg {background-color: #d4edda; color: #155724; padding: 10px; border-radius: 5px;}
-    .error-msg {background-color: #f8d7da; color: #721c24; padding: 10px; border-radius: 5px;}
-    .sub-header {font-size: 1.5em; color: #2196F3;}
+    body {font-family: 'Arial', sans-serif;}
+    .main-header {
+        text-align: center; 
+        margin-bottom: 40px; 
+        font-size: 2.5em; 
+        color: #2C3E50; 
+        font-weight: 600;
+    }
+    .sub-header {
+        font-size: 1.5em; 
+        color: #2980B9; 
+        margin-top: 20px; 
+        font-weight: 500;
+    }
+    .number-display {
+        font-size: 72px; 
+        text-align: center; 
+        margin: 30px 0; 
+        color: #2C3E50; 
+        font-weight: bold;
+    }
+    .success-msg {
+        background-color: #ECF0F1; 
+        color: #2C3E50; 
+        padding: 15px; 
+        border-radius: 8px; 
+        border-left: 5px solid #27AE60;
+        margin: 20px 0;
+    }
+    .error-msg {
+        background-color: #FADBD8; 
+        color: #922B21; 
+        padding: 15px; 
+        border-radius: 8px; 
+        border-left: 5px solid #E74C3C;
+        margin: 20px 0;
+    }
+    .instruction-box {
+        background-color: #F7F9F9; 
+        padding: 15px; 
+        border-radius: 8px; 
+        border: 1px solid #D5DBDB; 
+        font-size: 0.9em; 
+        color: #7F8C8D; 
+        margin: 20px 0;
+    }
+    .stButton>button {
+        background-color: #2980B9; 
+        color: white; 
+        border: none; 
+        padding: 10px 20px; 
+        border-radius: 5px; 
+        font-weight: 500; 
+        transition: background-color 0.3s;
+    }
+    .stButton>button:hover {
+        background-color: #3498DB;
+    }
+    .sidebar .sidebar-content {
+        background-color: #ECF0F1;
+        padding: 20px;
+    }
+    .stDataFrame {
+        border: 1px solid #D5DBDB; 
+        border-radius: 8px; 
+        overflow: hidden;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# --- Funções ---
+# --- Funções (mantidas iguais, exceto ajustes de design) ---
 
 def get_supabase_client() -> Client:
-    """Estabelece conexão com o Supabase usando variáveis de ambiente."""
     supabase_url = os.getenv("SUPABASE_URL")
     supabase_key = os.getenv("SUPABASE_KEY")
     if not supabase_url or not supabase_key:
@@ -45,7 +105,6 @@ def get_supabase_client() -> Client:
         return None
 
 def check_table_exists(supabase, table_name):
-    """Verifica se uma tabela específica existe no Supabase."""
     try:
         supabase.table(table_name).select("*").limit(1).execute()
         return True
@@ -53,7 +112,6 @@ def check_table_exists(supabase, table_name):
         return False
 
 def create_meeting_table(supabase, table_name, meeting_name, max_number=999, selected_forms=None):
-    """Cria uma nova tabela para uma reunião no Supabase e registra metadados."""
     try:
         response_metadata = supabase.table("meetings_metadata").insert({
             "table_name": table_name,
@@ -103,7 +161,6 @@ def create_meeting_table(supabase, table_name, meeting_name, max_number=999, sel
         return False
 
 def get_available_meetings(supabase):
-    """Recupera a lista de reuniões disponíveis da tabela de metadados."""
     try:
         response = supabase.table("meetings_metadata").select("*").execute()
         return response.data if response.data else []
@@ -112,7 +169,6 @@ def get_available_meetings(supabase):
         return []
 
 def get_available_forms(supabase):
-    """Recupera a lista de formulários disponíveis da tabela de metadados."""
     try:
         response = supabase.table("forms_metadata").select("*").execute()
         return response.data if response.data else []
@@ -121,7 +177,6 @@ def get_available_forms(supabase):
         return []
 
 def get_forms_for_meeting(supabase, meeting_id):
-    """Recupera os formulários associados a uma reunião específica."""
     try:
         response = supabase.table("meeting_forms").select("form_id").eq("meeting_id", meeting_id).execute()
         form_ids = [row["form_id"] for row in response.data]
@@ -134,7 +189,6 @@ def get_forms_for_meeting(supabase, meeting_id):
         return []
 
 def get_answered_forms(supabase, participant_id):
-    """Recupera os IDs dos formulários já respondidos por um participant_id."""
     try:
         response = supabase.table("responses").select("form_id").eq("participant_id", participant_id).execute()
         return set(row["form_id"] for row in response.data) if response.data else set()
@@ -142,38 +196,7 @@ def get_answered_forms(supabase, participant_id):
         st.error(f"Erro ao verificar formulários respondidos: {str(e)}")
         return set()
 
-def generate_number_image(number):
-    """Gera uma imagem com o número atribuído."""
-    width, height = 600, 300
-    img = Image.new("RGB", (width, height), color=(255, 255, 255))
-    draw = ImageDraw.Draw(img)
-    
-    for y in range(height):
-        r = int(220 - y/3)
-        g = int(240 - y/3)
-        b = 255
-        for x in range(width):
-            draw.point((x, y), fill=(r, g, b))
-    
-    try:
-        font = ImageFont.truetype("Arial.ttf", 200)
-    except IOError:
-        font = ImageFont.load_default()
-    
-    number_text = str(number)
-    bbox = draw.textbbox((0, 0), number_text, font=font)
-    text_width = bbox[2] - bbox[0]
-    text_height = bbox[3] - bbox[1]
-    text_position = ((width - text_width) // 2, (height - text_height) // 2)
-    draw.text(text_position, number_text, font=font, fill=(0, 0, 100))
-    
-    img_buffer = io.BytesIO()
-    img.save(img_buffer, format="PNG")
-    img_buffer.seek(0)
-    return img_buffer
-
 def generate_participant_link(table_name, user_id=None, mode="participant"):
-    """Gera um link para participantes acessarem a reunião ou formulário."""
     base_url = "https://mynumber.streamlit.app"
     if user_id:
         return f"{base_url}/?table={table_name}&mode={mode}&user_id={user_id}"
@@ -212,10 +235,18 @@ if mode == "participant" and table_name_from_url:
         st.stop()
 
     user_id = st.session_state["user_id"]
-    
     participant_link = generate_participant_link(table_name_from_url, user_id, mode="participant")
-    st.markdown(f"**Seu Link Persistente para Reunião:** [{participant_link}]({participant_link})")
-    st.write("Guarde este link para acessar sempre o mesmo número!")
+    
+    st.markdown(f"**Seu Link para essa Reunião:**")
+    if st.button("Acessar Reunião", key="access_meeting"):
+        st.write(f"Link: {participant_link}")
+        st.code(participant_link, language="text")
+
+    st.markdown("""
+    <div class='instruction-box'>
+        <strong>Guarde este link para acessar sempre o mesmo número!</strong> Não compartilhe com outros. Salve também o número abaixo; caso perca o acesso a esse link, você vai precisar. Dica: tire um print da tela e salve o número.
+    </div>
+    """, unsafe_allow_html=True)
 
     try:
         existing = supabase.table(table_name_from_url).select("number").eq("user_id", user_id).execute()
@@ -257,27 +288,18 @@ if mode == "participant" and table_name_from_url:
                 form_id = form["id"]
                 form_link = generate_participant_link(form["table_name"], user_id, mode="participant_form")
                 status = "✅ Respondido" if form_id in answered_forms else "⏳ Pendente"
-                st.markdown(f"- **{form['form_name']}** ({status}): [{form_link}]({form_link})")
+                st.markdown(f"- **{form['form_name']}** ({status})")
+                if st.button(f"Acessar {form['form_name']}", key=f"form_{form_id}"):
+                    st.write(f"Link: {form_link}")
+                    st.code(form_link, language="text")
         else:
             st.info("Nenhum formulário disponível para esta reunião.")
 
     except Exception as e:
         st.error(f"Erro ao atribuir número: {str(e)}")
         st.stop()
-    
-    if st.button("Salvar como Imagem"):
-        with st.spinner("Gerando imagem..."):
-            img_buffer = generate_number_image(st.session_state["assigned_number"])
-            st.image(img_buffer)
-            st.download_button(
-                "Baixar Imagem",
-                img_buffer,
-                file_name=f"meu_numero_{st.session_state['assigned_number']}.png",
-                mime="image/png"
-            )
 
 elif mode == "participant_form" and table_name_from_url:
-    # --- Modo Participante para Formulários ---
     st.markdown("<h1 class='main-header'>Responder Formulário</h1>", unsafe_allow_html=True)
     supabase = get_supabase_client()
     if not supabase:
@@ -394,7 +416,9 @@ else:
                             if success:
                                 participant_link = generate_participant_link(table_name, mode="participant")
                                 st.success(f"Reunião '{meeting_name}' criada com sucesso!")
-                                st.markdown(f"**Link para Participantes:** [{participant_link}]({participant_link})")
+                                st.markdown(f"**Link para Participantes:**")
+                                if st.button("Compartilhar Reunião", key="share_meeting"):
+                                    st.code(participant_link, language="text")
                                 st.session_state["selected_table"] = table_name
                                 st.session_state["page"] = "Compartilhar Link da Reunião"
                                 st.rerun()
@@ -453,10 +477,10 @@ else:
         if selected:
             selected_table = options[selected]
             participant_link = generate_participant_link(selected_table, mode="participant")
-            st.markdown(f"**Link para Participantes:** [{participant_link}]({participant_link})")
-            if st.button("Copiar Link"):
+            st.markdown(f"**Link para Participantes:**")
+            if st.button("Copiar Link", key="copy_meeting_link"):
                 st.write("Link copiado para a área de transferência!")
-                st.code(participant_link)
+                st.code(participant_link, language="text")
 
     elif page == "Ver Estatísticas":
         st.session_state["page"] = "Ver Estatísticas"
@@ -683,7 +707,9 @@ else:
 
                     participant_link = generate_participant_link(table_name, mode="participant_form")
                     st.success(f"Formulário '{form_name}' criado com sucesso!")
-                    st.markdown(f"**Link Geral para Participantes:** [{participant_link}]({participant_link})")
+                    st.markdown(f"**Link Geral para Participantes:**")
+                    if st.button("Compartilhar Formulário", key="share_form"):
+                        st.code(participant_link, language="text")
                     st.session_state['questions'] = []
                     st.session_state['show_options_form'] = False
                     st.session_state['current_question_index'] = None
@@ -730,10 +756,10 @@ else:
         if selected:
             selected_table = options[selected]
             participant_link = generate_participant_link(selected_table, mode="participant_form")
-            st.markdown(f"**Link Geral para Participantes:** [{participant_link}]({participant_link})")
-            if st.button("Copiar Link Geral"):
+            st.markdown(f"**Link Geral para Participantes:**")
+            if st.button("Copiar Link Geral", key="copy_form_link"):
                 st.write("Link copiado para a área de transferência!")
-                st.code(participant_link)
+                st.code(participant_link, language="text")
 
             st.subheader("Links Únicos por Usuário")
             meetings = get_available_meetings(supabase)
