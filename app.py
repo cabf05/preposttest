@@ -207,6 +207,54 @@ def generate_participant_link(table_name, user_id=None, mode="participant"):
         return f"{base_url}/?table={table_name}&mode={mode}&user_id={user_id}"
     return f"{base_url}/?table={table_name}&mode={mode}"
 
+def generate_excel_template():
+    data = {
+        "Question Text": ["Example: What is 2+2?", "Example: Which color is the sky?"],
+        "Question Type": ["text", "multiple_choice"],
+        "Options": ["", "red;blue;green"],
+        "Correct Answer": ["4", "blue"]
+    }
+    df = pd.DataFrame(data)
+    buffer = io.BytesIO()
+    df.to_excel(buffer, index=False)
+    buffer.seek(0)
+    return buffer
+
+def process_excel_upload(file):
+    try:
+        df = pd.read_excel(file)
+        required_columns = {"Question Text", "Question Type", "Options", "Correct Answer"}
+        if not required_columns.issubset(df.columns):
+            st.error("The uploaded file does not match the required template. Missing columns.")
+            return None
+        
+        questions = []
+        for _, row in df.iterrows():
+            question_text = str(row["Question Text"]).strip()
+            question_type = str(row["Question Type"]).strip().lower()
+            options = str(row["Options"]).strip() if pd.notna(row["Options"]) else ""
+            correct_answer = str(row["Correct Answer"]).strip() if pd.notna(row["Correct Answer"]) else None
+
+            if not question_text or question_type not in ["text", "multiple_choice"]:
+                st.error(f"Invalid data in row: {question_text}. Question Type must be 'text' or 'multiple_choice'.")
+                return None
+
+            question_data = {
+                "text": question_text,
+                "type": question_type,
+                "options": options.split(";") if options and question_type == "multiple_choice" else [],
+                "correct": correct_answer if correct_answer and correct_answer != "nan" else None
+            }
+            if question_type == "multiple_choice" and question_data["options"] and correct_answer and correct_answer not in question_data["options"]:
+                st.error(f"Correct Answer '{correct_answer}' for '{question_text}' is not in the options list.")
+                return None
+            
+            questions.append(question_data)
+        return questions
+    except Exception as e:
+        st.error(f"Error processing the uploaded file: {str(e)}")
+        return None
+
 # --- Mode Check ---
 query_params = st.query_params
 mode = query_params.get("mode", "master")
@@ -220,7 +268,6 @@ if "user_id" not in st.session_state:
         st.session_state["user_id"] = str(uuid.uuid4())
 
 if mode == "participant" and table_name_from_url:
-    # --- Participant Mode for Meetings ---
     st.markdown("<h1 class='main-header'>Your Meeting Page</h1>", unsafe_allow_html=True)
     supabase = get_supabase_client()
     if not supabase:
@@ -242,7 +289,6 @@ if mode == "participant" and table_name_from_url:
     user_id = st.session_state["user_id"]
     participant_link = generate_participant_link(table_name_from_url, user_id, mode="participant")
     
-    # Instructions at the top with emojis
     st.markdown("""
     <div class='instruction-box'>
         <strong>📌 Keep this link safe to always access your number!</strong> Do not share it with others. Also, save your number below — you'll need it if you lose this link. <br> 
@@ -250,14 +296,12 @@ if mode == "participant" and table_name_from_url:
     </div>
     """, unsafe_allow_html=True)
 
-    # "Copy Your Link" button
     st.markdown("**Your Link for This Meeting:**")
     if st.button("Copy Your Link", key="copy_link"):
         st.write(f"Link: {participant_link}")
         st.code(participant_link, language="text")
         st.success("Link copied to clipboard!")
 
-    # Number assignment
     try:
         existing = supabase.table(table_name_from_url).select("number").eq("user_id", user_id).execute()
         if existing.data:
@@ -289,7 +333,6 @@ if mode == "participant" and table_name_from_url:
         </div>
         """, unsafe_allow_html=True)
 
-        # Available Forms with improved presentation and direct access
         st.subheader("Available Forms for You")
         forms = get_forms_for_meeting(supabase, meeting_id)
         participant_id = str(st.session_state["assigned_number"])
@@ -301,7 +344,6 @@ if mode == "participant" and table_name_from_url:
                 status = "✅ Completed" if form_id in answered_forms else "⏳ Pending"
                 st.markdown(f"<div class='form-item'><strong>{form['form_name']}</strong> ({status})</div>", unsafe_allow_html=True)
                 if st.button(f"Access {form['form_name']}", key=f"form_{form_id}"):
-                    # Redirect directly to the form
                     st.query_params.update({
                         "table": form_table_name,
                         "mode": "participant_form",
@@ -316,7 +358,6 @@ if mode == "participant" and table_name_from_url:
         st.stop()
 
 elif mode == "participant_form" and table_name_from_url:
-    # --- Participant Mode for Forms ---
     st.markdown("<h1 class='main-header'>Submit Form</h1>", unsafe_allow_html=True)
     supabase = get_supabase_client()
     if not supabase:
@@ -402,7 +443,6 @@ elif mode == "participant_form" and table_name_from_url:
                 st.warning("Please fill in all responses.")
 
 else:
-    # --- Master Mode ---
     valid_pages = ["Manage Meetings", "Share Meeting Link", "View Statistics", "Manage Forms", "Share Form Link"]
     if "page" not in st.session_state or st.session_state["page"] not in valid_pages:
         st.session_state["page"] = "Manage Meetings"
@@ -644,6 +684,40 @@ else:
                 st.session_state['show_options_form'] = False
             if 'current_question_index' not in st.session_state:
                 st.session_state['current_question_index'] = None
+            if 'show_import_popup' not in st.session_state:
+                st.session_state['show_import_popup'] = False
+
+            # Button to trigger Excel import popup
+            if st.form_submit_button("Import Questions via Excel Template"):
+                st.session_state['show_import_popup'] = True
+
+            # Excel Import Popup Logic
+            if st.session_state['show_import_popup']:
+                with st.expander("Import Questions from Excel", expanded=True):
+                    st.write("Download the template spreadsheet by clicking here:")
+                    st.download_button(
+                        label="Download Template",
+                        data=generate_excel_template(),
+                        file_name="form_questions_template.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
+                    uploaded_file = st.file_uploader("Upload your filled Excel file", type=["xlsx"])
+                    if uploaded_file:
+                        questions_from_excel = process_excel_upload(uploaded_file)
+                        if questions_from_excel:
+                            st.write("Questions found in the uploaded file:")
+                            for i, q in enumerate(questions_from_excel):
+                                st.write(f"{i+1}. {q['text']} ({q['type']})")
+                                if q['type'] == 'multiple_choice' and q['options']:
+                                    st.write("Options:", ", ".join(q['options']))
+                                    st.write(f"Correct: {q['correct'] if q['correct'] else 'None'}")
+                                elif q['type'] == 'text':
+                                    st.write(f"Correct: {q['correct'] if q['correct'] else 'None'}")
+                            if st.button("Confirm Import", key="confirm_import"):
+                                st.session_state['questions'].extend(questions_from_excel)
+                                st.session_state['show_import_popup'] = False
+                                st.success("Questions imported successfully!")
+                                st.rerun()
 
             st.markdown("<h3 class='sub-header'>Add Question</h3>", unsafe_allow_html=True)
             question_type = st.selectbox("Question Type", ["Text", "Multiple Choice"], key="q_type")
