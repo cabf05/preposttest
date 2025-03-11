@@ -85,7 +85,6 @@ def create_meeting_table(supabase, table_name, meeting_name, max_number=999, sel
                     for j in range(i+1, end+1)]
             supabase.table(table_name).insert(data).execute()
 
-        # Associar formulários à reunião
         if selected_forms:
             for form_id in selected_forms:
                 supabase.table("meeting_forms").insert({
@@ -180,7 +179,7 @@ def generate_participant_link(table_name, user_id=None, mode="participant"):
         return f"{base_url}/?table={table_name}&mode={mode}&user_id={user_id}"
     return f"{base_url}/?table={table_name}&mode={mode}"
 
-# --- Verifica Modo (Master, Participant ou Participant_Form) ---
+# --- Verifica Modo ---
 query_params = st.query_params
 mode = query_params.get("mode", "master")
 table_name_from_url = query_params.get("table", None)
@@ -249,7 +248,6 @@ if mode == "participant" and table_name_from_url:
         </div>
         """, unsafe_allow_html=True)
 
-        # Mostrar links de formulários disponíveis para esta reunião com status
         st.subheader("Formulários Disponíveis para Você")
         forms = get_forms_for_meeting(supabase, meeting_id)
         participant_id = str(st.session_state["assigned_number"])
@@ -312,7 +310,6 @@ elif mode == "participant_form" and table_name_from_url:
         st.error("Você precisa ter um número atribuído para responder formulários.")
         st.stop()
 
-    # Verificar se o formulário já foi respondido
     participant_id = participant_id_default
     answered_forms = get_answered_forms(supabase, participant_id)
     if form_id in answered_forms:
@@ -367,7 +364,6 @@ else:
     st.sidebar.title("Menu (Master)")
     page = st.sidebar.radio("Escolha uma opção", valid_pages, index=valid_pages.index(st.session_state["page"]))
 
-    # --- Página 1: Gerenciar Reuniões ---
     if page == "Gerenciar Reuniões":
         st.session_state["page"] = "Gerenciar Reuniões"
         st.markdown("<h1 class='main-header'>Gerenciar Reuniões</h1>", unsafe_allow_html=True)
@@ -380,7 +376,6 @@ else:
             meeting_name = st.text_input("Nome da Reunião")
             max_number = st.number_input("Número Máximo", min_value=10, max_value=10000, value=999)
             
-            # Seleção de formulários disponíveis para a reunião
             forms = get_available_forms(supabase)
             form_options = {f"{f['form_name']} ({f['table_name']})": f["id"] for f in forms}
             selected_forms = st.multiselect("Formulários Disponíveis nesta Reunião", list(form_options.keys()))
@@ -438,7 +433,6 @@ else:
         else:
             st.info("Nenhuma reunião disponível ou erro ao acessar o Supabase.")
 
-    # --- Página 2: Compartilhar Link da Reunião ---
     elif page == "Compartilhar Link da Reunião":
         st.session_state["page"] = "Compartilhar Link da Reunião"
         st.markdown("<h1 class='main-header'>Compartilhar Link da Reunião</h1>", unsafe_allow_html=True)
@@ -464,7 +458,6 @@ else:
                 st.write("Link copiado para a área de transferência!")
                 st.code(participant_link)
 
-    # --- Página 3: Ver Estatísticas ---
     elif page == "Ver Estatísticas":
         st.session_state["page"] = "Ver Estatísticas"
         st.markdown("<h1 class='main-header'>Estatísticas da Reunião</h1>", unsafe_allow_html=True)
@@ -486,7 +479,6 @@ else:
             meeting_info = supabase.table("meetings_metadata").select("id").eq("table_name", selected_table).execute()
             meeting_id = meeting_info.data[0]["id"]
             
-            # Estatísticas de números
             try:
                 total_response = supabase.table(selected_table).select("*", count="exact").execute()
                 total_numbers = total_response.count if hasattr(total_response, 'count') else 0
@@ -540,7 +532,6 @@ else:
             except Exception as e:
                 st.error(f"Erro ao recuperar estatísticas de números: {str(e)}")
 
-            # Estatísticas de respostas dos formulários
             st.subheader("Respostas dos Formulários")
             forms = get_forms_for_meeting(supabase, meeting_id)
             if forms:
@@ -552,19 +543,14 @@ else:
                         form = next((f for f in forms if f["id"] == resp["form_id"]), None)
                         question = supabase.table("questions").select("question_text, question_type, correct_answer").eq("id", resp["question_id"]).execute().data[0]
                         
-                        # Determinar a resposta exibida
                         answer_display = resp["answer"]
                         is_correct = None
                         if question["question_type"] == "multiple_choice":
-                            # Buscar o texto da opção escolhida
                             option = supabase.table("options").select("option_text").eq("id", resp["answer"]).execute()
                             answer_display = option.data[0]["option_text"] if option.data else resp["answer"]
-                            
-                            # Verificar se a resposta está correta
                             if question["correct_answer"]:
                                 is_correct = "✅ Correta" if resp["answer"] == question["correct_answer"] else "❌ Incorreta"
                         elif question["question_type"] == "text" and question["correct_answer"]:
-                            # Para perguntas de texto, comparar diretamente com a resposta correta
                             is_correct = "✅ Correta" if resp["answer"].lower() == question["correct_answer"].lower() else "❌ Incorreta"
 
                         response_data.append({
@@ -591,7 +577,6 @@ else:
             else:
                 st.info("Nenhum formulário associado a esta reunião.")
 
-    # --- Página 4: Gerenciar Formulários ---
     elif page == "Gerenciar Formulários":
         st.session_state["page"] = "Gerenciar Formulários"
         st.markdown("<h1 class='main-header'>Gerenciar Formulários</h1>", unsafe_allow_html=True)
@@ -605,55 +590,71 @@ else:
 
             if 'questions' not in st.session_state:
                 st.session_state['questions'] = []
+            if 'current_options' not in st.session_state:
+                st.session_state['current_options'] = []
+            if 'show_options_form' not in st.session_state:
+                st.session_state['show_options_form'] = False
+            if 'current_question_index' not in st.session_state:
+                st.session_state['current_question_index'] = None
 
             st.markdown("<h3 class='sub-header'>Adicionar Pergunta</h3>", unsafe_allow_html=True)
             question_type = st.selectbox("Tipo da Pergunta", ["Texto", "Múltipla Escolha"], key="q_type")
             question_text = st.text_input("Texto da Pergunta", key="q_text")
 
-            correct_answer = None
-            options = []
-            if question_type == "Múltipla Escolha":
-                num_options = st.number_input("Número de Opções", min_value=2, max_value=10, value=2, key="num_opts")
-                for i in range(num_options):
-                    option_text = st.text_input(f"Opção {i+1}", key=f"opt_{i}")
-                    if option_text:
-                        options.append(option_text)
-                correct_option = st.selectbox("Opção Correta (opcional)", ["Nenhuma"] + options, key="correct_opt")
-                if correct_option != "Nenhuma":
-                    correct_answer = correct_option
-            else:
-                correct_answer = st.text_input("Resposta Correta (opcional)", key="correct_text")
-
             if st.form_submit_button("Adicionar Pergunta"):
                 if question_text:
-                    if question_type == "Múltipla Escolha" and len(options) >= 2:
-                        st.session_state['questions'].append({
-                            'type': 'multiple_choice',
-                            'text': question_text,
-                            'options': options,
-                            'correct': correct_answer
-                        })
-                        st.success("Pergunta de múltipla escolha adicionada!")
-                    elif question_type == "Texto":
-                        st.session_state['questions'].append({
-                            'type': 'text',
-                            'text': question_text,
-                            'correct': correct_answer if correct_answer else None
-                        })
-                        st.success("Pergunta de texto adicionada!")
+                    question_data = {
+                        'type': 'text' if question_type == "Texto" else 'multiple_choice',
+                        'text': question_text,
+                        'options': [],
+                        'correct': None
+                    }
+                    st.session_state['questions'].append(question_data)
+                    if question_type == "Múltipla Escolha":
+                        st.session_state['show_options_form'] = True
+                        st.session_state['current_question_index'] = len(st.session_state['questions']) - 1
+                        st.session_state['current_options'] = []
                     else:
-                        st.warning("Adicione pelo menos 2 opções para perguntas de múltipla escolha.")
+                        st.session_state['show_options_form'] = False
+                    st.success(f"Pergunta '{question_text}' adicionada!")
                 else:
                     st.warning("O texto da pergunta é obrigatório.")
+
+            if st.session_state['show_options_form'] and st.session_state['current_question_index'] is not None:
+                st.markdown("<h3 class='sub-header'>Adicionar Opções</h3>", unsafe_allow_html=True)
+                option_text = st.text_input("Texto da Opção", key="opt_text")
+                if st.form_submit_button("Adicionar Opção"):
+                    if option_text:
+                        st.session_state['current_options'].append(option_text)
+                        st.success(f"Opção '{option_text}' adicionada!")
+                    else:
+                        st.warning("O texto da opção é obrigatório.")
+
+                if st.session_state['current_options']:
+                    st.write("Opções adicionadas até agora:")
+                    for i, opt in enumerate(st.session_state['current_options']):
+                        st.write(f"{i+1}. {opt}")
+
+                if len(st.session_state['current_options']) >= 2:
+                    correct_option = st.selectbox("Opção Correta (opcional)", ["Nenhuma"] + st.session_state['current_options'], key="correct_opt")
+                    if st.form_submit_button("Finalizar Opções"):
+                        current_idx = st.session_state['current_question_index']
+                        st.session_state['questions'][current_idx]['options'] = st.session_state['current_options']
+                        if correct_option != "Nenhuma":
+                            st.session_state['questions'][current_idx]['correct'] = correct_option
+                        st.session_state['show_options_form'] = False
+                        st.session_state['current_question_index'] = None
+                        st.session_state['current_options'] = []
+                        st.success("Opções e resposta correta (se selecionada) salvas!")
 
             if st.session_state['questions']:
                 st.markdown("<h3 class='sub-header'>Perguntas Adicionadas</h3>", unsafe_allow_html=True)
                 for i, q in enumerate(st.session_state['questions']):
                     st.write(f"{i+1}. {q['text']} ({q['type']})")
-                    if q['type'] == 'multiple_choice':
+                    if q['type'] == 'multiple_choice' and q['options']:
                         st.write("Opções:", ", ".join(q['options']))
                         st.write(f"Correta: {q['correct'] if q['correct'] else 'Nenhuma'}")
-                    else:
+                    elif q['type'] == 'text':
                         st.write(f"Correta: {q['correct'] if q['correct'] else 'Nenhuma'}")
 
             if st.form_submit_button("Criar Formulário"):
@@ -673,7 +674,7 @@ else:
                         q_response = supabase.table("questions").insert(question_data).execute()
                         question_id = q_response.data[0]['id']
 
-                        if q['type'] == 'multiple_choice':
+                        if q['type'] == 'multiple_choice' and q['options']:
                             for opt in q['options']:
                                 opt_data = {"question_id": question_id, "option_text": opt}
                                 opt_response = supabase.table("options").insert(opt_data).execute()
@@ -684,6 +685,9 @@ else:
                     st.success(f"Formulário '{form_name}' criado com sucesso!")
                     st.markdown(f"**Link Geral para Participantes:** [{participant_link}]({participant_link})")
                     st.session_state['questions'] = []
+                    st.session_state['show_options_form'] = False
+                    st.session_state['current_question_index'] = None
+                    st.session_state['current_options'] = []
                     st.session_state["selected_form_table"] = table_name
                     st.session_state["page"] = "Compartilhar Link do Formulário"
                     st.rerun()
@@ -706,7 +710,6 @@ else:
         else:
             st.info("Nenhum formulário disponível.")
 
-    # --- Página 5: Compartilhar Link do Formulário ---
     elif page == "Compartilhar Link do Formulário":
         st.session_state["page"] = "Compartilhar Link do Formulário"
         st.markdown("<h1 class='main-header'>Compartilhar Link do Formulário</h1>", unsafe_allow_html=True)
