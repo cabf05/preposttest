@@ -329,6 +329,8 @@ elif mode == "participant_form" and table_name_from_url:
                 options = supabase.table("options").select("*").eq("question_id", q['id']).execute()
                 option_texts = [opt['option_text'] for opt in options.data]
                 option_ids = [opt['id'] for opt in options.data]
+                # Mensagem de depuração
+                st.write(f"DEBUG: Renderizando pergunta {q['id']} como botões de rádio")
                 selected_option = st.radio("Escolha uma opção", option_texts, key=f"resp_{q['id']}")
                 responses[q['id']] = option_ids[option_texts.index(selected_option)]
 
