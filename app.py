@@ -329,7 +329,7 @@ elif mode == "participant_form" and table_name_from_url:
                 options = supabase.table("options").select("*").eq("question_id", q['id']).execute()
                 option_texts = [opt['option_text'] for opt in options.data]
                 option_ids = [opt['id'] for opt in options.data]
-                selected_option = st.selectbox("Escolha uma opção", option_texts, key=f"resp_{q['id']}")
+                selected_option = st.radio("Escolha uma opção", option_texts, key=f"resp_{q['id']}")
                 responses[q['id']] = option_ids[option_texts.index(selected_option)]
 
         st.text_input("Seu Nome ou ID", value=participant_id, key="participant_id", disabled=True)
