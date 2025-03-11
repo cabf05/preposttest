@@ -221,7 +221,7 @@ if "user_id" not in st.session_state:
 
 if mode == "participant" and table_name_from_url:
     # --- Participant Mode for Meetings ---
-    st.markdown("<h1 class='main-header'>Get Your Number</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 class='main-header'>Your Meeting Page</h1>", unsafe_allow_html=True)
     supabase = get_supabase_client()
     if not supabase:
         st.stop()
@@ -289,7 +289,7 @@ if mode == "participant" and table_name_from_url:
         </div>
         """, unsafe_allow_html=True)
 
-        # Available Forms with improved presentation
+        # Available Forms with improved presentation and direct access
         st.subheader("Available Forms for You")
         forms = get_forms_for_meeting(supabase, meeting_id)
         participant_id = str(st.session_state["assigned_number"])
@@ -297,12 +297,17 @@ if mode == "participant" and table_name_from_url:
         if forms:
             for form in forms:
                 form_id = form["id"]
-                form_link = generate_participant_link(form["table_name"], user_id, mode="participant_form")
+                form_table_name = form["table_name"]
                 status = "✅ Completed" if form_id in answered_forms else "⏳ Pending"
                 st.markdown(f"<div class='form-item'><strong>{form['form_name']}</strong> ({status})</div>", unsafe_allow_html=True)
                 if st.button(f"Access {form['form_name']}", key=f"form_{form_id}"):
-                    st.write(f"Link: {form_link}")
-                    st.code(form_link, language="text")
+                    # Redirect directly to the form
+                    st.query_params.update({
+                        "table": form_table_name,
+                        "mode": "participant_form",
+                        "user_id": user_id
+                    })
+                    st.rerun()
         else:
             st.info("No forms available for this meeting.")
 
@@ -348,6 +353,13 @@ elif mode == "participant_form" and table_name_from_url:
     answered_forms = get_answered_forms(supabase, participant_id)
     if form_id in answered_forms:
         st.warning("You have already submitted this form. Each participant can only submit once.")
+        if st.button("Back to Your Page", key="back_to_page"):
+            st.query_params.update({
+                "table": meeting_table_name,
+                "mode": "participant",
+                "user_id": user_id
+            })
+            st.rerun()
         st.stop()
 
     with st.form("form_submission"):
