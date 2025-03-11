@@ -680,6 +680,8 @@ else:
             st.session_state['show_options_form'] = False
         if 'current_question_index' not in st.session_state:
             st.session_state['current_question_index'] = None
+        if 'form_created' not in st.session_state:
+            st.session_state['form_created'] = None  # Controla se o formulário foi criado
 
         # Seção para adicionar questões manualmente
         st.subheader("Create Form with Manual Questions")
@@ -774,19 +776,25 @@ else:
                                     supabase.table("questions").update({"correct_answer": str(opt_response.data[0]['id'])}).eq("id", question_id).execute()
 
                     participant_link = generate_participant_link(table_name, mode="participant_form")
-                    st.success(f"Form '{form_name_manual}' created successfully!")
-                    st.markdown("**General Participant Link:**")
-                    if st.button("Share Form", key="share_form_manual"):
-                        st.code(participant_link, language="text")
+                    st.session_state['form_created'] = {"name": form_name_manual, "link": participant_link, "table": table_name}
                     st.session_state['questions'] = []
                     st.session_state['show_options_form'] = False
                     st.session_state['current_question_index'] = None
                     st.session_state['current_options'] = []
-                    st.session_state["selected_form_table"] = table_name
-                    st.session_state["page"] = "Share Form Link"
-                    st.rerun()
+                    st.success(f"Form '{form_name_manual}' created successfully!")
                 else:
                     st.warning("Enter a form name and at least one question.")
+
+        # Exibir link após criação manual
+        if st.session_state.get('form_created') and st.session_state['form_created']['name'] == form_name_manual:
+            st.markdown("**General Participant Link:**")
+            if st.button("Share Form", key="share_form_manual_unique"):
+                st.code(st.session_state['form_created']['link'], language="text")
+            if st.button("Go to Share Page", key="go_to_share_manual"):
+                st.session_state["selected_form_table"] = st.session_state['form_created']['table']
+                st.session_state["page"] = "Share Form Link"
+                st.session_state['form_created'] = None
+                st.rerun()
 
         # Seção para importar questões via Excel
         st.subheader("Create Form from Excel Template")
@@ -837,15 +845,21 @@ else:
                                     supabase.table("questions").update({"correct_answer": str(opt_response.data[0]['id'])}).eq("id", question_id).execute()
 
                     participant_link = generate_participant_link(table_name, mode="participant_form")
+                    st.session_state['form_created'] = {"name": form_name_excel, "link": participant_link, "table": table_name}
                     st.success(f"Form '{form_name_excel}' created successfully!")
-                    st.markdown("**General Participant Link:**")
-                    if st.button("Share Form", key="share_form_excel"):
-                        st.code(participant_link, language="text")
-                    st.session_state["selected_form_table"] = table_name
-                    st.session_state["page"] = "Share Form Link"
-                    st.rerun()
                 else:
                     st.warning("Enter a form name and upload a valid Excel file.")
+
+        # Exibir link após criação via Excel
+        if st.session_state.get('form_created') and st.session_state['form_created']['name'] == form_name_excel:
+            st.markdown("**General Participant Link:**")
+            if st.button("Share Form", key="share_form_excel_unique"):
+                st.code(st.session_state['form_created']['link'], language="text")
+            if st.button("Go to Share Page", key="go_to_share_excel"):
+                st.session_state["selected_form_table"] = st.session_state['form_created']['table']
+                st.session_state["page"] = "Share Form Link"
+                st.session_state['form_created'] = None
+                st.rerun()
 
         # Exibir formulários disponíveis
         st.subheader("Available Forms")
