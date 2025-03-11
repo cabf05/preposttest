@@ -94,7 +94,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- Funções ---
-
 def get_supabase_client() -> Client:
     supabase_url = os.getenv("SUPABASE_URL")
     supabase_key = os.getenv("SUPABASE_KEY")
@@ -671,57 +670,21 @@ else:
         supabase = get_supabase_client()
         if not supabase:
             st.stop()
-        
-        # Botão de download fora do formulário
-        st.download_button(
-            label="Download Template",
-            data=generate_excel_template(),
-            file_name="template_questoes.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
 
-        with st.form("create_form_form"):
-            st.subheader("Create New Form")
-            form_name = st.text_input("Form Name", key="form_name")
+        # Inicializar estados de sessão se não existirem
+        if 'questions' not in st.session_state:
+            st.session_state['questions'] = []
+        if 'current_options' not in st.session_state:
+            st.session_state['current_options'] = []
+        if 'show_options_form' not in st.session_state:
+            st.session_state['show_options_form'] = False
+        if 'current_question_index' not in st.session_state:
+            st.session_state['current_question_index'] = None
 
-            if 'questions' not in st.session_state:
-                st.session_state['questions'] = []
-            if 'current_options' not in st.session_state:
-                st.session_state['current_options'] = []
-            if 'show_options_form' not in st.session_state:
-                st.session_state['show_options_form'] = False
-            if 'current_question_index' not in st.session_state:
-                st.session_state['current_question_index'] = None
-            if 'show_import_popup' not in st.session_state:
-                st.session_state['show_import_popup'] = False
-
-            # Botão para abrir o popup de importação de Excel
-            if st.form_submit_button("Import Questions via Excel Template"):
-                st.session_state['show_import_popup'] = True
-
-            # Lógica do popup de importação de Excel com formulário aninhado
-            if st.session_state['show_import_popup']:
-                with st.expander("Import Questions from Excel", expanded=True):
-                    st.write("Download the template spreadsheet by clicking the 'Download Template' button above.")
-                    with st.form("import_excel_form"):  # Formulário aninhado para importação
-                        uploaded_file = st.file_uploader("Upload your filled Excel file", type=["xlsx"])
-                        if uploaded_file:
-                            questions_from_excel = process_excel_upload(uploaded_file)
-                            if questions_from_excel:
-                                st.write("Questions found in the uploaded file:")
-                                for i, q in enumerate(questions_from_excel):
-                                    st.write(f"{i+1}. {q['text']} ({q['type']})")
-                                    if q['type'] == 'multiple_choice' and q['options']:
-                                        st.write("Options:", ", ".join(q['options']))
-                                        st.write(f"Correct: {q['correct'] if q['correct'] else 'None'}")
-                                    elif q['type'] == 'text':
-                                        st.write(f"Correct: {q['correct'] if q['correct'] else 'None'}")
-                        if st.form_submit_button("Confirm Import", key="confirm_import"):
-                            if uploaded_file and 'questions_from_excel' in locals() and questions_from_excel:
-                                st.session_state['questions'].extend(questions_from_excel)
-                                st.session_state['show_import_popup'] = False
-                                st.success("Questions imported successfully!")
-                                st.rerun()
+        # Seção para adicionar questões manualmente
+        st.subheader("Create Form with Manual Questions")
+        with st.form("create_form_manual"):
+            form_name_manual = st.text_input("Form Name", key="form_name_manual")
 
             st.markdown("<h3 class='sub-header'>Add Question</h3>", unsafe_allow_html=True)
             question_type = st.selectbox("Question Type", ["Text", "Multiple Choice"], key="q_type")
@@ -746,6 +709,7 @@ else:
                 else:
                     st.warning("Question text is required.")
 
+            # Adicionar opções para questões de múltipla escolha
             if st.session_state['show_options_form'] and st.session_state['current_question_index'] is not None:
                 st.markdown("<h3 class='sub-header'>Add Options</h3>", unsafe_allow_html=True)
                 option_text = st.text_input("Option Text", key="opt_text")
@@ -773,6 +737,7 @@ else:
                         st.session_state['current_options'] = []
                         st.success("Options and correct answer (if selected) saved!")
 
+            # Exibir questões adicionadas
             if st.session_state['questions']:
                 st.markdown("<h3 class='sub-header'>Added Questions</h3>", unsafe_allow_html=True)
                 for i, q in enumerate(st.session_state['questions']):
@@ -783,10 +748,11 @@ else:
                     elif q['type'] == 'text':
                         st.write(f"Correct: {q['correct'] if q['correct'] else 'None'}")
 
+            # Botão para criar o formulário
             if st.form_submit_button("Create Form"):
-                if form_name and st.session_state['questions']:
-                    table_name = f"form_{int(time.time())}_{form_name.lower().replace(' ', '_')}"
-                    form_data = {"form_name": form_name, "table_name": table_name, "created_at": datetime.now().isoformat()}
+                if form_name_manual and st.session_state['questions']:
+                    table_name = f"form_{int(time.time())}_{form_name_manual.lower().replace(' ', '_')}"
+                    form_data = {"form_name": form_name_manual, "table_name": table_name, "created_at": datetime.now().isoformat()}
                     form_response = supabase.table("forms_metadata").insert(form_data).execute()
                     form_id = form_response.data[0]['id']
 
@@ -808,9 +774,9 @@ else:
                                     supabase.table("questions").update({"correct_answer": str(opt_response.data[0]['id'])}).eq("id", question_id).execute()
 
                     participant_link = generate_participant_link(table_name, mode="participant_form")
-                    st.success(f"Form '{form_name}' created successfully!")
+                    st.success(f"Form '{form_name_manual}' created successfully!")
                     st.markdown("**General Participant Link:**")
-                    if st.button("Share Form", key="share_form"):
+                    if st.button("Share Form", key="share_form_manual"):
                         st.code(participant_link, language="text")
                     st.session_state['questions'] = []
                     st.session_state['show_options_form'] = False
@@ -822,6 +788,66 @@ else:
                 else:
                     st.warning("Enter a form name and at least one question.")
 
+        # Seção para importar questões via Excel
+        st.subheader("Create Form from Excel Template")
+        st.download_button(
+            label="Download Template",
+            data=generate_excel_template(),
+            file_name="template_questoes.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        with st.form("create_form_excel"):
+            form_name_excel = st.text_input("Form Name", key="form_name_excel")
+            uploaded_file = st.file_uploader("Upload your filled Excel file", type=["xlsx"])
+
+            if uploaded_file:
+                questions_from_excel = process_excel_upload(uploaded_file)
+                if questions_from_excel:
+                    st.write("Questions found in the uploaded file:")
+                    for i, q in enumerate(questions_from_excel):
+                        st.write(f"{i+1}. {q['text']} ({q['type']})")
+                        if q['type'] == 'multiple_choice' and q['options']:
+                            st.write("Options:", ", ".join(q['options']))
+                            st.write(f"Correct: {q['correct'] if q['correct'] else 'None'}")
+                        elif q['type'] == 'text':
+                            st.write(f"Correct: {q['correct'] if q['correct'] else 'None'}")
+
+            if st.form_submit_button("Create Form from Excel"):
+                if form_name_excel and uploaded_file and 'questions_from_excel' in locals() and questions_from_excel:
+                    table_name = f"form_{int(time.time())}_{form_name_excel.lower().replace(' ', '_')}"
+                    form_data = {"form_name": form_name_excel, "table_name": table_name, "created_at": datetime.now().isoformat()}
+                    form_response = supabase.table("forms_metadata").insert(form_data).execute()
+                    form_id = form_response.data[0]['id']
+
+                    for q in questions_from_excel:
+                        question_data = {
+                            "form_id": form_id,
+                            "question_text": q['text'],
+                            "question_type": q['type'],
+                            "correct_answer": q['correct']
+                        }
+                        q_response = supabase.table("questions").insert(question_data).execute()
+                        question_id = q_response.data[0]['id']
+
+                        if q['type'] == 'multiple_choice' and q['options']:
+                            for opt in q['options']:
+                                opt_data = {"question_id": question_id, "option_text": opt}
+                                opt_response = supabase.table("options").insert(opt_data).execute()
+                                if opt == q['correct']:
+                                    supabase.table("questions").update({"correct_answer": str(opt_response.data[0]['id'])}).eq("id", question_id).execute()
+
+                    participant_link = generate_participant_link(table_name, mode="participant_form")
+                    st.success(f"Form '{form_name_excel}' created successfully!")
+                    st.markdown("**General Participant Link:**")
+                    if st.button("Share Form", key="share_form_excel"):
+                        st.code(participant_link, language="text")
+                    st.session_state["selected_form_table"] = table_name
+                    st.session_state["page"] = "Share Form Link"
+                    st.rerun()
+                else:
+                    st.warning("Enter a form name and upload a valid Excel file.")
+
+        # Exibir formulários disponíveis
         st.subheader("Available Forms")
         forms = get_available_forms(supabase)
         if forms:
