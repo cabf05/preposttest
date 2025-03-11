@@ -8,14 +8,14 @@ import pandas as pd
 from datetime import datetime
 import os
 
-# --- Configuração Inicial ---
+# --- Initial Setup ---
 st.set_page_config(
     page_title="Number Assignment & Form System",
     layout="centered",
     initial_sidebar_state="expanded"
 )
 
-# --- Estilização CSS Atualizada ---
+# --- Updated CSS Styling ---
 st.markdown("""
 <style>
     body {font-family: 'Arial', sans-serif;}
@@ -85,23 +85,28 @@ st.markdown("""
         border-radius: 8px; 
         overflow: hidden;
     }
+    .form-item {
+        font-size: 1.2em; 
+        color: #2C3E50; 
+        margin: 10px 0;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# --- Funções (mantidas iguais, exceto ajustes de design) ---
+# --- Functions ---
 
 def get_supabase_client() -> Client:
     supabase_url = os.getenv("SUPABASE_URL")
     supabase_key = os.getenv("SUPABASE_KEY")
     if not supabase_url or not supabase_key:
-        st.error("Credenciais do Supabase não configuradas no ambiente.")
+        st.error("Supabase credentials not configured in the environment.")
         return None
     try:
         client = create_client(supabase_url, supabase_key)
         client.table("_dummy").select("*").limit(1).execute()
         return client
     except Exception as e:
-        st.error(f"Erro ao conectar ao Supabase: {str(e)}")
+        st.error(f"Error connecting to Supabase: {str(e)}")
         return None
 
 def check_table_exists(supabase, table_name):
@@ -134,7 +139,7 @@ def create_meeting_table(supabase, table_name, meeting_name, max_number=999, sel
 
         time.sleep(1)
         if not check_table_exists(supabase, table_name):
-            raise Exception(f"Tabela {table_name} não foi criada com sucesso no Supabase.")
+            raise Exception(f"Table {table_name} was not created successfully in Supabase.")
 
         batch_size = 100
         for i in range(0, max_number, batch_size):
@@ -152,12 +157,12 @@ def create_meeting_table(supabase, table_name, meeting_name, max_number=999, sel
         
         return True
     except Exception as e:
-        st.error(f"Erro ao criar tabela de reunião: {str(e)}")
+        st.error(f"Error creating meeting table: {str(e)}")
         try:
             supabase.table("meetings_metadata").delete().eq("table_name", table_name).execute()
             supabase.rpc("execute_sql", {"query": f"DROP TABLE IF EXISTS public.{table_name}"}).execute()
         except Exception as rollback_e:
-            st.error(f"Erro no rollback: {str(rollback_e)}")
+            st.error(f"Rollback error: {str(rollback_e)}")
         return False
 
 def get_available_meetings(supabase):
@@ -165,7 +170,7 @@ def get_available_meetings(supabase):
         response = supabase.table("meetings_metadata").select("*").execute()
         return response.data if response.data else []
     except Exception as e:
-        st.error(f"Erro ao recuperar reuniões: {str(e)}")
+        st.error(f"Error retrieving meetings: {str(e)}")
         return []
 
 def get_available_forms(supabase):
@@ -173,7 +178,7 @@ def get_available_forms(supabase):
         response = supabase.table("forms_metadata").select("*").execute()
         return response.data if response.data else []
     except Exception as e:
-        st.error(f"Erro ao recuperar formulários: {str(e)}")
+        st.error(f"Error retrieving forms: {str(e)}")
         return []
 
 def get_forms_for_meeting(supabase, meeting_id):
@@ -185,7 +190,7 @@ def get_forms_for_meeting(supabase, meeting_id):
             return forms.data if forms.data else []
         return []
     except Exception as e:
-        st.error(f"Erro ao recuperar formulários da reunião: {str(e)}")
+        st.error(f"Error retrieving forms for meeting: {str(e)}")
         return []
 
 def get_answered_forms(supabase, participant_id):
@@ -193,7 +198,7 @@ def get_answered_forms(supabase, participant_id):
         response = supabase.table("responses").select("form_id").eq("participant_id", participant_id).execute()
         return set(row["form_id"] for row in response.data) if response.data else set()
     except Exception as e:
-        st.error(f"Erro ao verificar formulários respondidos: {str(e)}")
+        st.error(f"Error checking answered forms: {str(e)}")
         return set()
 
 def generate_participant_link(table_name, user_id=None, mode="participant"):
@@ -202,7 +207,7 @@ def generate_participant_link(table_name, user_id=None, mode="participant"):
         return f"{base_url}/?table={table_name}&mode={mode}&user_id={user_id}"
     return f"{base_url}/?table={table_name}&mode={mode}"
 
-# --- Verifica Modo ---
+# --- Mode Check ---
 query_params = st.query_params
 mode = query_params.get("mode", "master")
 table_name_from_url = query_params.get("table", None)
@@ -215,45 +220,50 @@ if "user_id" not in st.session_state:
         st.session_state["user_id"] = str(uuid.uuid4())
 
 if mode == "participant" and table_name_from_url:
-    # --- Modo Participante para Reuniões ---
-    st.markdown("<h1 class='main-header'>Obtenha Seu Número</h1>", unsafe_allow_html=True)
+    # --- Participant Mode for Meetings ---
+    st.markdown("<h1 class='main-header'>Get Your Number</h1>", unsafe_allow_html=True)
     supabase = get_supabase_client()
     if not supabase:
         st.stop()
     
     if not check_table_exists(supabase, table_name_from_url):
-        st.error("Reunião não encontrada ou inválida.")
+        st.error("Meeting not found or invalid.")
         st.stop()
     
     try:
         meeting_info = supabase.table("meetings_metadata").select("*").eq("table_name", table_name_from_url).execute()
-        meeting_name = meeting_info.data[0]["meeting_name"] if meeting_info.data else "Reunião"
+        meeting_name = meeting_info.data[0]["meeting_name"] if meeting_info.data else "Meeting"
         meeting_id = meeting_info.data[0]["id"]
-        st.subheader(f"Reunião: {meeting_name}")
+        st.subheader(f"Meeting: {meeting_name}")
     except Exception:
-        st.subheader("Obtenha um número para a reunião")
+        st.subheader("Get a number for the meeting")
         st.stop()
 
     user_id = st.session_state["user_id"]
     participant_link = generate_participant_link(table_name_from_url, user_id, mode="participant")
     
-    st.markdown(f"**Seu Link para essa Reunião:**")
-    if st.button("Acessar Reunião", key="access_meeting"):
-        st.write(f"Link: {participant_link}")
-        st.code(participant_link, language="text")
-
+    # Instructions at the top with emojis
     st.markdown("""
     <div class='instruction-box'>
-        <strong>Guarde este link para acessar sempre o mesmo número!</strong> Não compartilhe com outros. Salve também o número abaixo; caso perca o acesso a esse link, você vai precisar. Dica: tire um print da tela e salve o número.
+        <strong>📌 Keep this link safe to always access your number!</strong> Do not share it with others. Also, save your number below — you'll need it if you lose this link. <br> 
+        💡 <em>Tip: Take a screenshot of this page to save your number.</em>
     </div>
     """, unsafe_allow_html=True)
 
+    # "Copy Your Link" button
+    st.markdown("**Your Link for This Meeting:**")
+    if st.button("Copy Your Link", key="copy_link"):
+        st.write(f"Link: {participant_link}")
+        st.code(participant_link, language="text")
+        st.success("Link copied to clipboard!")
+
+    # Number assignment
     try:
         existing = supabase.table(table_name_from_url).select("number").eq("user_id", user_id).execute()
         if existing.data:
             st.session_state["assigned_number"] = existing.data[0]["number"]
         else:
-            with st.spinner("Atribuindo um número..."):
+            with st.spinner("Assigning a number..."):
                 response = supabase.table(table_name_from_url).select("*").eq("assigned", False).execute()
                 if response.data:
                     available_numbers = [row["number"] for row in response.data]
@@ -266,20 +276,21 @@ if mode == "participant" and table_name_from_url:
                         }).eq("number", assigned_number).execute()
                         st.session_state["assigned_number"] = assigned_number
                     else:
-                        st.error("Todos os números foram atribuídos!")
+                        st.error("All numbers have been assigned!")
                         st.stop()
                 else:
-                    st.error("Todos os números foram atribuídos!")
+                    st.error("All numbers have been assigned!")
                     st.stop()
 
         st.markdown(f"""
         <div class='success-msg'>
-            <p>Seu número atribuído é:</p>
+            <p>Your assigned number is:</p>
             <div class='number-display'>{st.session_state['assigned_number']}</div>
         </div>
         """, unsafe_allow_html=True)
 
-        st.subheader("Formulários Disponíveis para Você")
+        # Available Forms with improved presentation
+        st.subheader("Available Forms for You")
         forms = get_forms_for_meeting(supabase, meeting_id)
         participant_id = str(st.session_state["assigned_number"])
         answered_forms = get_answered_forms(supabase, participant_id)
@@ -287,35 +298,36 @@ if mode == "participant" and table_name_from_url:
             for form in forms:
                 form_id = form["id"]
                 form_link = generate_participant_link(form["table_name"], user_id, mode="participant_form")
-                status = "✅ Respondido" if form_id in answered_forms else "⏳ Pendente"
-                st.markdown(f"- **{form['form_name']}** ({status})")
-                if st.button(f"Acessar {form['form_name']}", key=f"form_{form_id}"):
+                status = "✅ Completed" if form_id in answered_forms else "⏳ Pending"
+                st.markdown(f"<div class='form-item'><strong>{form['form_name']}</strong> ({status})</div>", unsafe_allow_html=True)
+                if st.button(f"Access {form['form_name']}", key=f"form_{form_id}"):
                     st.write(f"Link: {form_link}")
                     st.code(form_link, language="text")
         else:
-            st.info("Nenhum formulário disponível para esta reunião.")
+            st.info("No forms available for this meeting.")
 
     except Exception as e:
-        st.error(f"Erro ao atribuir número: {str(e)}")
+        st.error(f"Error assigning number: {str(e)}")
         st.stop()
 
 elif mode == "participant_form" and table_name_from_url:
-    st.markdown("<h1 class='main-header'>Responder Formulário</h1>", unsafe_allow_html=True)
+    # --- Participant Mode for Forms ---
+    st.markdown("<h1 class='main-header'>Submit Form</h1>", unsafe_allow_html=True)
     supabase = get_supabase_client()
     if not supabase:
         st.stop()
     
     form_info = supabase.table("forms_metadata").select("*").eq("table_name", table_name_from_url).execute()
     if not form_info.data:
-        st.error("Formulário não encontrado.")
+        st.error("Form not found.")
         st.stop()
 
     form_id = form_info.data[0]['id']
-    st.subheader(f"Formulário: {form_info.data[0]['form_name']}")
+    st.subheader(f"Form: {form_info.data[0]['form_name']}")
 
     questions = supabase.table("questions").select("*").eq("form_id", form_id).execute()
     if not questions.data:
-        st.error("Nenhuma pergunta encontrada para este formulário.")
+        st.error("No questions found for this form.")
         st.stop()
 
     user_id = st.session_state["user_id"]
@@ -329,13 +341,13 @@ elif mode == "participant_form" and table_name_from_url:
             break
     
     if not participant_id_default:
-        st.error("Você precisa ter um número atribuído para responder formulários.")
+        st.error("You need an assigned number to submit forms.")
         st.stop()
 
     participant_id = participant_id_default
     answered_forms = get_answered_forms(supabase, participant_id)
     if form_id in answered_forms:
-        st.warning("Você já respondeu este formulário. Cada participante só pode responder uma vez.")
+        st.warning("You have already submitted this form. Each participant can only submit once.")
         st.stop()
 
     with st.form("form_submission"):
@@ -343,19 +355,19 @@ elif mode == "participant_form" and table_name_from_url:
         for q in questions.data:
             st.write(f"{q['question_text']}")
             if q['question_type'] == 'text':
-                responses[q['id']] = st.text_input("Sua resposta", key=f"resp_{q['id']}")
+                responses[q['id']] = st.text_input("Your answer", key=f"resp_{q['id']}")
             elif q['question_type'] == 'multiple_choice':
                 options = supabase.table("options").select("*").eq("question_id", q['id']).execute()
                 option_texts = [opt['option_text'] for opt in options.data]
                 option_ids = [opt['id'] for opt in options.data]
-                selected_option = st.radio("Escolha uma opção", option_texts, index=None, key=f"resp_{q['id']}")
+                selected_option = st.radio("Choose an option", option_texts, index=None, key=f"resp_{q['id']}")
                 if selected_option is not None:
                     responses[q['id']] = option_ids[option_texts.index(selected_option)]
                 else:
                     responses[q['id']] = None
 
-        st.text_input("Seu Nome ou ID", value=participant_id, key="participant_id", disabled=True)
-        if st.form_submit_button("Enviar"):
+        st.text_input("Your Name or ID", value=participant_id, key="participant_id", disabled=True)
+        if st.form_submit_button("Submit"):
             if all(responses.values()):
                 for q_id, answer in responses.items():
                     response_data = {
@@ -365,8 +377,8 @@ elif mode == "participant_form" and table_name_from_url:
                         "answer": str(answer)
                     }
                     supabase.table("responses").insert(response_data).execute()
-                st.success("Respostas enviadas com sucesso!")
-                st.markdown(f"Voltando para sua página de participante em 3 segundos...")
+                st.success("Responses submitted successfully!")
+                st.markdown("Returning to your participant page in 3 seconds...")
                 time.sleep(3)
                 st.query_params.update({
                     "table": meeting_table_name,
@@ -375,59 +387,59 @@ elif mode == "participant_form" and table_name_from_url:
                 })
                 st.rerun()
             else:
-                st.warning("Preencha todas as respostas.")
+                st.warning("Please fill in all responses.")
 
 else:
-    # --- Modo Master ---
-    valid_pages = ["Gerenciar Reuniões", "Compartilhar Link da Reunião", "Ver Estatísticas", "Gerenciar Formulários", "Compartilhar Link do Formulário"]
+    # --- Master Mode ---
+    valid_pages = ["Manage Meetings", "Share Meeting Link", "View Statistics", "Manage Forms", "Share Form Link"]
     if "page" not in st.session_state or st.session_state["page"] not in valid_pages:
-        st.session_state["page"] = "Gerenciar Reuniões"
+        st.session_state["page"] = "Manage Meetings"
 
     st.sidebar.title("Menu (Master)")
-    page = st.sidebar.radio("Escolha uma opção", valid_pages, index=valid_pages.index(st.session_state["page"]))
+    page = st.sidebar.radio("Choose an option", valid_pages, index=valid_pages.index(st.session_state["page"]))
 
-    if page == "Gerenciar Reuniões":
-        st.session_state["page"] = "Gerenciar Reuniões"
-        st.markdown("<h1 class='main-header'>Gerenciar Reuniões</h1>", unsafe_allow_html=True)
+    if page == "Manage Meetings":
+        st.session_state["page"] = "Manage Meetings"
+        st.markdown("<h1 class='main-header'>Manage Meetings</h1>", unsafe_allow_html=True)
         supabase = get_supabase_client()
         if not supabase:
             st.stop()
         
         with st.form("create_meeting_form"):
-            st.subheader("Criar Nova Reunião")
-            meeting_name = st.text_input("Nome da Reunião")
-            max_number = st.number_input("Número Máximo", min_value=10, max_value=10000, value=999)
+            st.subheader("Create New Meeting")
+            meeting_name = st.text_input("Meeting Name")
+            max_number = st.number_input("Maximum Number", min_value=10, max_value=10000, value=999)
             
             forms = get_available_forms(supabase)
             form_options = {f"{f['form_name']} ({f['table_name']})": f["id"] for f in forms}
-            selected_forms = st.multiselect("Formulários Disponíveis nesta Reunião", list(form_options.keys()))
+            selected_forms = st.multiselect("Forms Available in this Meeting", list(form_options.keys()))
             selected_form_ids = [form_options[form] for form in selected_forms] if selected_forms else None
 
-            submit_button = st.form_submit_button("Criar Reunião")
+            submit_button = st.form_submit_button("Create Meeting")
             
             if submit_button:
                 if meeting_name:
                     table_name = f"meeting_{int(time.time())}_{meeting_name.lower().replace(' ', '_')}"
                     if check_table_exists(supabase, table_name):
-                        st.error("Uma reunião com esse nome já existe. Tente outro nome.")
+                        st.error("A meeting with this name already exists. Try a different name.")
                     else:
-                        with st.spinner("Criando reunião..."):
+                        with st.spinner("Creating meeting..."):
                             success = create_meeting_table(supabase, table_name, meeting_name, max_number, selected_form_ids)
                             if success:
                                 participant_link = generate_participant_link(table_name, mode="participant")
-                                st.success(f"Reunião '{meeting_name}' criada com sucesso!")
-                                st.markdown(f"**Link para Participantes:**")
-                                if st.button("Compartilhar Reunião", key="share_meeting"):
+                                st.success(f"Meeting '{meeting_name}' created successfully!")
+                                st.markdown("**Participant Link:**")
+                                if st.button("Share Meeting", key="share_meeting"):
                                     st.code(participant_link, language="text")
                                 st.session_state["selected_table"] = table_name
-                                st.session_state["page"] = "Compartilhar Link da Reunião"
+                                st.session_state["page"] = "Share Meeting Link"
                                 st.rerun()
                             else:
-                                st.error("Falha ao criar a reunião.")
+                                st.error("Failed to create the meeting.")
                 else:
-                    st.warning("Por favor, insira um nome para a reunião.")
+                    st.warning("Please enter a name for the meeting.")
         
-        st.subheader("Reuniões Existentes")
+        st.subheader("Existing Meetings")
         meetings = get_available_meetings(supabase)
         if meetings:
             meeting_data = []
@@ -440,26 +452,26 @@ else:
                             assigned_count = count_response.count if hasattr(count_response, 'count') else 0
                             participant_link = generate_participant_link(table_name, mode="participant")
                             meeting_data.append({
-                                "Nome": meeting.get("meeting_name", "Sem nome"),
-                                "Tabela": table_name,
+                                "Name": meeting.get("meeting_name", "No name"),
+                                "Table": table_name,
                                 "Link": participant_link,
-                                "Criada em": meeting.get("created_at", "")[:16].replace("T", " "),
-                                "Números Atribuídos": assigned_count,
-                                "Total de Números": meeting.get("max_number", 0)
+                                "Created At": meeting.get("created_at", "")[:16].replace("T", " "),
+                                "Assigned Numbers": assigned_count,
+                                "Total Numbers": meeting.get("max_number", 0)
                             })
                         except Exception as e:
-                            st.warning(f"Erro ao processar reunião {table_name}: {str(e)}")
+                            st.warning(f"Error processing meeting {table_name}: {str(e)}")
             if meeting_data:
                 df = pd.DataFrame(meeting_data)
                 st.dataframe(df)
             else:
-                st.info("Nenhuma reunião válida encontrada.")
+                st.info("No valid meetings found.")
         else:
-            st.info("Nenhuma reunião disponível ou erro ao acessar o Supabase.")
+            st.info("No meetings available or error accessing Supabase.")
 
-    elif page == "Compartilhar Link da Reunião":
-        st.session_state["page"] = "Compartilhar Link da Reunião"
-        st.markdown("<h1 class='main-header'>Compartilhar Link da Reunião</h1>", unsafe_allow_html=True)
+    elif page == "Share Meeting Link":
+        st.session_state["page"] = "Share Meeting Link"
+        st.markdown("<h1 class='main-header'>Share Meeting Link</h1>", unsafe_allow_html=True)
         
         supabase = get_supabase_client()
         if not supabase:
@@ -467,36 +479,36 @@ else:
         
         meetings = get_available_meetings(supabase)
         if not meetings:
-            st.info("Nenhuma reunião disponível. Crie uma reunião primeiro.")
+            st.info("No meetings available. Create a meeting first.")
             st.stop()
         
         options = {f"{m['meeting_name']} ({m['table_name']})": m["table_name"] 
                    for m in meetings if "table_name" in m and "meeting_name" in m}
-        selected = st.selectbox("Selecione uma reunião para compartilhar:", list(options.keys()))
+        selected = st.selectbox("Select a meeting to share:", list(options.keys()))
         
         if selected:
             selected_table = options[selected]
             participant_link = generate_participant_link(selected_table, mode="participant")
-            st.markdown(f"**Link para Participantes:**")
-            if st.button("Copiar Link", key="copy_meeting_link"):
-                st.write("Link copiado para a área de transferência!")
+            st.markdown("**Participant Link:**")
+            if st.button("Copy Link", key="copy_meeting_link"):
+                st.write("Link copied to clipboard!")
                 st.code(participant_link, language="text")
 
-    elif page == "Ver Estatísticas":
-        st.session_state["page"] = "Ver Estatísticas"
-        st.markdown("<h1 class='main-header'>Estatísticas da Reunião</h1>", unsafe_allow_html=True)
+    elif page == "View Statistics":
+        st.session_state["page"] = "View Statistics"
+        st.markdown("<h1 class='main-header'>Meeting Statistics</h1>", unsafe_allow_html=True)
         supabase = get_supabase_client()
         if not supabase:
             st.stop()
         
         meetings = get_available_meetings(supabase)
         if not meetings:
-            st.info("Nenhuma reunião disponível para análise.")
+            st.info("No meetings available for analysis.")
             st.stop()
         
         options = {f"{m['meeting_name']} ({m['table_name']})": m["table_name"] 
                    for m in meetings if "table_name" in m and "meeting_name" in m}
-        selected = st.selectbox("Selecione uma reunião:", list(options.keys()))
+        selected = st.selectbox("Select a meeting:", list(options.keys()))
         
         if selected:
             selected_table = options[selected]
@@ -512,11 +524,11 @@ else:
                 
                 col1, col2, col3 = st.columns(3)
                 with col1:
-                    st.metric("Total de Números", total_numbers)
+                    st.metric("Total Numbers", total_numbers)
                 with col2:
-                    st.metric("Números Atribuídos", assigned_numbers)
+                    st.metric("Assigned Numbers", assigned_numbers)
                 with col3:
-                    st.metric("Porcentagem Atribuída", f"{percentage:.1f}%")
+                    st.metric("Percentage Assigned", f"{percentage:.1f}%")
                 
                 try:
                     time_data_response = supabase.table(selected_table).select("*").eq("assigned", True).order("assigned_at").execute()
@@ -534,29 +546,29 @@ else:
                             df["hour"] = df["time"].dt.floor("H")
                             hourly_counts = df.groupby("hour").count().reset_index()
                             hourly_counts["hour_str"] = hourly_counts["hour"].dt.strftime("%m/%d %H:00")
-                            st.subheader("Atribuições de Números por Hora")
+                            st.subheader("Number Assignments by Hour")
                             st.bar_chart(data=hourly_counts, x="hour_str", y="count")
                 except Exception:
-                    st.info("Dados temporais não disponíveis para esta reunião.")
+                    st.info("Temporal data not available for this meeting.")
                 
-                if st.button("Exportar Dados de Números"):
+                if st.button("Export Number Data"):
                     try:
                         all_data_response = supabase.table(selected_table).select("*").execute()
                         if all_data_response.data:
                             df = pd.DataFrame(all_data_response.data)
                             csv = df.to_csv(index=False)
                             st.download_button(
-                                "Baixar CSV",
+                                "Download CSV",
                                 csv,
-                                file_name=f"{selected_table}_numeros_export.csv",
+                                file_name=f"{selected_table}_numbers_export.csv",
                                 mime="text/csv"
                             )
                     except Exception as e:
-                        st.error(f"Erro ao exportar dados: {str(e)}")
+                        st.error(f"Error exporting data: {str(e)}")
             except Exception as e:
-                st.error(f"Erro ao recuperar estatísticas de números: {str(e)}")
+                st.error(f"Error retrieving number statistics: {str(e)}")
 
-            st.subheader("Respostas dos Formulários")
+            st.subheader("Form Responses")
             forms = get_forms_for_meeting(supabase, meeting_id)
             if forms:
                 form_ids = [f["id"] for f in forms]
@@ -573,44 +585,44 @@ else:
                             option = supabase.table("options").select("option_text").eq("id", resp["answer"]).execute()
                             answer_display = option.data[0]["option_text"] if option.data else resp["answer"]
                             if question["correct_answer"]:
-                                is_correct = "✅ Correta" if resp["answer"] == question["correct_answer"] else "❌ Incorreta"
+                                is_correct = "✅ Correct" if resp["answer"] == question["correct_answer"] else "❌ Incorrect"
                         elif question["question_type"] == "text" and question["correct_answer"]:
-                            is_correct = "✅ Correta" if resp["answer"].lower() == question["correct_answer"].lower() else "❌ Incorreta"
+                            is_correct = "✅ Correct" if resp["answer"].lower() == question["correct_answer"].lower() else "❌ Incorrect"
 
                         response_data.append({
-                            "Participante": resp["participant_id"],
-                            "Formulário": form["form_name"] if form else "Desconhecido",
-                            "Pergunta": question["question_text"],
-                            "Resposta": answer_display,
-                            "Correta": is_correct if is_correct is not None else "N/A"
+                            "Participant": resp["participant_id"],
+                            "Form": form["form_name"] if form else "Unknown",
+                            "Question": question["question_text"],
+                            "Response": answer_display,
+                            "Correct": is_correct if is_correct is not None else "N/A"
                         })
                     
                     df = pd.DataFrame(response_data)
                     st.dataframe(df)
                     
-                    if st.button("Exportar Respostas dos Formulários"):
+                    if st.button("Export Form Responses"):
                         csv = df.to_csv(index=False)
                         st.download_button(
-                            "Baixar CSV",
+                            "Download CSV",
                             csv,
-                            file_name=f"{selected_table}_respostas_export.csv",
+                            file_name=f"{selected_table}_responses_export.csv",
                             mime="text/csv"
                         )
                 else:
-                    st.info("Nenhuma resposta registrada para os formulários desta reunião.")
+                    st.info("No responses recorded for this meeting's forms.")
             else:
-                st.info("Nenhum formulário associado a esta reunião.")
+                st.info("No forms associated with this meeting.")
 
-    elif page == "Gerenciar Formulários":
-        st.session_state["page"] = "Gerenciar Formulários"
-        st.markdown("<h1 class='main-header'>Gerenciar Formulários</h1>", unsafe_allow_html=True)
+    elif page == "Manage Forms":
+        st.session_state["page"] = "Manage Forms"
+        st.markdown("<h1 class='main-header'>Manage Forms</h1>", unsafe_allow_html=True)
         supabase = get_supabase_client()
         if not supabase:
             st.stop()
         
         with st.form("create_form_form"):
-            st.subheader("Criar Novo Formulário")
-            form_name = st.text_input("Nome do Formulário", key="form_name")
+            st.subheader("Create New Form")
+            form_name = st.text_input("Form Name", key="form_name")
 
             if 'questions' not in st.session_state:
                 st.session_state['questions'] = []
@@ -621,67 +633,67 @@ else:
             if 'current_question_index' not in st.session_state:
                 st.session_state['current_question_index'] = None
 
-            st.markdown("<h3 class='sub-header'>Adicionar Pergunta</h3>", unsafe_allow_html=True)
-            question_type = st.selectbox("Tipo da Pergunta", ["Texto", "Múltipla Escolha"], key="q_type")
-            question_text = st.text_input("Texto da Pergunta", key="q_text")
+            st.markdown("<h3 class='sub-header'>Add Question</h3>", unsafe_allow_html=True)
+            question_type = st.selectbox("Question Type", ["Text", "Multiple Choice"], key="q_type")
+            question_text = st.text_input("Question Text", key="q_text")
 
-            if st.form_submit_button("Adicionar Pergunta"):
+            if st.form_submit_button("Add Question"):
                 if question_text:
                     question_data = {
-                        'type': 'text' if question_type == "Texto" else 'multiple_choice',
+                        'type': 'text' if question_type == "Text" else 'multiple_choice',
                         'text': question_text,
                         'options': [],
                         'correct': None
                     }
                     st.session_state['questions'].append(question_data)
-                    if question_type == "Múltipla Escolha":
+                    if question_type == "Multiple Choice":
                         st.session_state['show_options_form'] = True
                         st.session_state['current_question_index'] = len(st.session_state['questions']) - 1
                         st.session_state['current_options'] = []
                     else:
                         st.session_state['show_options_form'] = False
-                    st.success(f"Pergunta '{question_text}' adicionada!")
+                    st.success(f"Question '{question_text}' added!")
                 else:
-                    st.warning("O texto da pergunta é obrigatório.")
+                    st.warning("Question text is required.")
 
             if st.session_state['show_options_form'] and st.session_state['current_question_index'] is not None:
-                st.markdown("<h3 class='sub-header'>Adicionar Opções</h3>", unsafe_allow_html=True)
-                option_text = st.text_input("Texto da Opção", key="opt_text")
-                if st.form_submit_button("Adicionar Opção"):
+                st.markdown("<h3 class='sub-header'>Add Options</h3>", unsafe_allow_html=True)
+                option_text = st.text_input("Option Text", key="opt_text")
+                if st.form_submit_button("Add Option"):
                     if option_text:
                         st.session_state['current_options'].append(option_text)
-                        st.success(f"Opção '{option_text}' adicionada!")
+                        st.success(f"Option '{option_text}' added!")
                     else:
-                        st.warning("O texto da opção é obrigatório.")
+                        st.warning("Option text is required.")
 
                 if st.session_state['current_options']:
-                    st.write("Opções adicionadas até agora:")
+                    st.write("Options added so far:")
                     for i, opt in enumerate(st.session_state['current_options']):
                         st.write(f"{i+1}. {opt}")
 
                 if len(st.session_state['current_options']) >= 2:
-                    correct_option = st.selectbox("Opção Correta (opcional)", ["Nenhuma"] + st.session_state['current_options'], key="correct_opt")
-                    if st.form_submit_button("Finalizar Opções"):
+                    correct_option = st.selectbox("Correct Option (optional)", ["None"] + st.session_state['current_options'], key="correct_opt")
+                    if st.form_submit_button("Finish Options"):
                         current_idx = st.session_state['current_question_index']
                         st.session_state['questions'][current_idx]['options'] = st.session_state['current_options']
-                        if correct_option != "Nenhuma":
+                        if correct_option != "None":
                             st.session_state['questions'][current_idx]['correct'] = correct_option
                         st.session_state['show_options_form'] = False
                         st.session_state['current_question_index'] = None
                         st.session_state['current_options'] = []
-                        st.success("Opções e resposta correta (se selecionada) salvas!")
+                        st.success("Options and correct answer (if selected) saved!")
 
             if st.session_state['questions']:
-                st.markdown("<h3 class='sub-header'>Perguntas Adicionadas</h3>", unsafe_allow_html=True)
+                st.markdown("<h3 class='sub-header'>Added Questions</h3>", unsafe_allow_html=True)
                 for i, q in enumerate(st.session_state['questions']):
                     st.write(f"{i+1}. {q['text']} ({q['type']})")
                     if q['type'] == 'multiple_choice' and q['options']:
-                        st.write("Opções:", ", ".join(q['options']))
-                        st.write(f"Correta: {q['correct'] if q['correct'] else 'Nenhuma'}")
+                        st.write("Options:", ", ".join(q['options']))
+                        st.write(f"Correct: {q['correct'] if q['correct'] else 'None'}")
                     elif q['type'] == 'text':
-                        st.write(f"Correta: {q['correct'] if q['correct'] else 'Nenhuma'}")
+                        st.write(f"Correct: {q['correct'] if q['correct'] else 'None'}")
 
-            if st.form_submit_button("Criar Formulário"):
+            if st.form_submit_button("Create Form"):
                 if form_name and st.session_state['questions']:
                     table_name = f"form_{int(time.time())}_{form_name.lower().replace(' ', '_')}"
                     form_data = {"form_name": form_name, "table_name": table_name, "created_at": datetime.now().isoformat()}
@@ -706,39 +718,39 @@ else:
                                     supabase.table("questions").update({"correct_answer": str(opt_response.data[0]['id'])}).eq("id", question_id).execute()
 
                     participant_link = generate_participant_link(table_name, mode="participant_form")
-                    st.success(f"Formulário '{form_name}' criado com sucesso!")
-                    st.markdown(f"**Link Geral para Participantes:**")
-                    if st.button("Compartilhar Formulário", key="share_form"):
+                    st.success(f"Form '{form_name}' created successfully!")
+                    st.markdown("**General Participant Link:**")
+                    if st.button("Share Form", key="share_form"):
                         st.code(participant_link, language="text")
                     st.session_state['questions'] = []
                     st.session_state['show_options_form'] = False
                     st.session_state['current_question_index'] = None
                     st.session_state['current_options'] = []
                     st.session_state["selected_form_table"] = table_name
-                    st.session_state["page"] = "Compartilhar Link do Formulário"
+                    st.session_state["page"] = "Share Form Link"
                     st.rerun()
                 else:
-                    st.warning("Insira um nome para o formulário e pelo menos uma pergunta.")
+                    st.warning("Enter a form name and at least one question.")
 
-        st.subheader("Formulários Disponíveis")
+        st.subheader("Available Forms")
         forms = get_available_forms(supabase)
         if forms:
             form_data = []
             for form in forms:
                 participant_link = generate_participant_link(form["table_name"], mode="participant_form")
                 form_data.append({
-                    "Nome": form["form_name"],
-                    "Link Geral": participant_link,
-                    "Criado em": form["created_at"][:16].replace("T", " ")
+                    "Name": form["form_name"],
+                    "General Link": participant_link,
+                    "Created At": form["created_at"][:16].replace("T", " ")
                 })
             df = pd.DataFrame(form_data)
-            st.dataframe(df, column_config={"Link Geral": st.column_config.LinkColumn("Link Geral")})
+            st.dataframe(df, column_config={"General Link": st.column_config.LinkColumn("General Link")})
         else:
-            st.info("Nenhum formulário disponível.")
+            st.info("No forms available.")
 
-    elif page == "Compartilhar Link do Formulário":
-        st.session_state["page"] = "Compartilhar Link do Formulário"
-        st.markdown("<h1 class='main-header'>Compartilhar Link do Formulário</h1>", unsafe_allow_html=True)
+    elif page == "Share Form Link":
+        st.session_state["page"] = "Share Form Link"
+        st.markdown("<h1 class='main-header'>Share Form Link</h1>", unsafe_allow_html=True)
         
         supabase = get_supabase_client()
         if not supabase:
@@ -746,34 +758,34 @@ else:
         
         forms = get_available_forms(supabase)
         if not forms:
-            st.info("Nenhum formulário disponível. Crie um formulário primeiro.")
+            st.info("No forms available. Create a form first.")
             st.stop()
         
         options = {f"{f['form_name']} ({f['table_name']})": f["table_name"] 
                    for f in forms if "table_name" in f and "form_name" in f}
-        selected = st.selectbox("Selecione um formulário para compartilhar:", list(options.keys()))
+        selected = st.selectbox("Select a form to share:", list(options.keys()))
         
         if selected:
             selected_table = options[selected]
             participant_link = generate_participant_link(selected_table, mode="participant_form")
-            st.markdown(f"**Link Geral para Participantes:**")
-            if st.button("Copiar Link Geral", key="copy_form_link"):
-                st.write("Link copiado para a área de transferência!")
+            st.markdown("**General Participant Link:**")
+            if st.button("Copy General Link", key="copy_form_link"):
+                st.write("Link copied to clipboard!")
                 st.code(participant_link, language="text")
 
-            st.subheader("Links Únicos por Usuário")
+            st.subheader("Unique Links per User")
             meetings = get_available_meetings(supabase)
             user_links = []
             for meeting in meetings:
                 assigned_users = supabase.table(meeting["table_name"]).select("user_id, number").eq("assigned", True).execute()
                 for user in assigned_users.data:
                     user_link = generate_participant_link(selected_table, user["user_id"], mode="participant_form")
-                    user_links.append({"Número": user["number"], "Link": user_link})
+                    user_links.append({"Number": user["number"], "Link": user_link})
             if user_links:
                 df = pd.DataFrame(user_links)
                 st.dataframe(df, column_config={"Link": st.column_config.LinkColumn("Link")})
             else:
-                st.info("Nenhum usuário com número atribuído encontrado.")
+                st.info("No users with assigned numbers found.")
 
 if __name__ == "__main__":
     pass
