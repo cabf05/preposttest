@@ -699,23 +699,25 @@ else:
             if st.form_submit_button("Import Questions via Excel Template"):
                 st.session_state['show_import_popup'] = True
 
-            # Lógica do popup de importação de Excel
+            # Lógica do popup de importação de Excel com formulário aninhado
             if st.session_state['show_import_popup']:
                 with st.expander("Import Questions from Excel", expanded=True):
                     st.write("Download the template spreadsheet by clicking the 'Download Template' button above.")
-                    uploaded_file = st.file_uploader("Upload your filled Excel file", type=["xlsx"])
-                    if uploaded_file:
-                        questions_from_excel = process_excel_upload(uploaded_file)
-                        if questions_from_excel:
-                            st.write("Questions found in the uploaded file:")
-                            for i, q in enumerate(questions_from_excel):
-                                st.write(f"{i+1}. {q['text']} ({q['type']})")
-                                if q['type'] == 'multiple_choice' and q['options']:
-                                    st.write("Options:", ", ".join(q['options']))
-                                    st.write(f"Correct: {q['correct'] if q['correct'] else 'None'}")
-                                elif q['type'] == 'text':
-                                    st.write(f"Correct: {q['correct'] if q['correct'] else 'None'}")
-                            if st.button("Confirm Import", key="confirm_import"):
+                    with st.form("import_excel_form"):  # Formulário aninhado para importação
+                        uploaded_file = st.file_uploader("Upload your filled Excel file", type=["xlsx"])
+                        if uploaded_file:
+                            questions_from_excel = process_excel_upload(uploaded_file)
+                            if questions_from_excel:
+                                st.write("Questions found in the uploaded file:")
+                                for i, q in enumerate(questions_from_excel):
+                                    st.write(f"{i+1}. {q['text']} ({q['type']})")
+                                    if q['type'] == 'multiple_choice' and q['options']:
+                                        st.write("Options:", ", ".join(q['options']))
+                                        st.write(f"Correct: {q['correct'] if q['correct'] else 'None'}")
+                                    elif q['type'] == 'text':
+                                        st.write(f"Correct: {q['correct'] if q['correct'] else 'None'}")
+                        if st.form_submit_button("Confirm Import", key="confirm_import"):
+                            if uploaded_file and 'questions_from_excel' in locals() and questions_from_excel:
                                 st.session_state['questions'].extend(questions_from_excel)
                                 st.session_state['show_import_popup'] = False
                                 st.success("Questions imported successfully!")
