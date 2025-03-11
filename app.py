@@ -8,14 +8,14 @@ import pandas as pd
 from datetime import datetime
 import os
 
-# --- Initial Setup ---
+# --- Configuração Inicial ---
 st.set_page_config(
     page_title="Number Assignment & Form System",
     layout="centered",
     initial_sidebar_state="expanded"
 )
 
-# --- Updated CSS Styling ---
+# --- Estilização CSS ---
 st.markdown("""
 <style>
     body {font-family: 'Arial', sans-serif;}
@@ -93,7 +93,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- Functions ---
+# --- Funções ---
 
 def get_supabase_client() -> Client:
     supabase_url = os.getenv("SUPABASE_URL")
@@ -255,7 +255,7 @@ def process_excel_upload(file):
         st.error(f"Error processing the uploaded file: {str(e)}")
         return None
 
-# --- Mode Check ---
+# --- Verificação de Modo ---
 query_params = st.query_params
 mode = query_params.get("mode", "master")
 table_name_from_url = query_params.get("table", None)
@@ -672,6 +672,14 @@ else:
         if not supabase:
             st.stop()
         
+        # Botão de download fora do formulário
+        st.download_button(
+            label="Download Template",
+            data=generate_excel_template(),
+            file_name="template_questoes.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
         with st.form("create_form_form"):
             st.subheader("Create New Form")
             form_name = st.text_input("Form Name", key="form_name")
@@ -687,20 +695,14 @@ else:
             if 'show_import_popup' not in st.session_state:
                 st.session_state['show_import_popup'] = False
 
-            # Button to trigger Excel import popup
+            # Botão para abrir o popup de importação de Excel
             if st.form_submit_button("Import Questions via Excel Template"):
                 st.session_state['show_import_popup'] = True
 
-            # Excel Import Popup Logic
+            # Lógica do popup de importação de Excel
             if st.session_state['show_import_popup']:
                 with st.expander("Import Questions from Excel", expanded=True):
-                    st.write("Download the template spreadsheet by clicking here:")
-                    st.download_button(
-                        label="Download Template",
-                        data=generate_excel_template(),
-                        file_name="form_questions_template.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                    )
+                    st.write("Download the template spreadsheet by clicking the 'Download Template' button above.")
                     uploaded_file = st.file_uploader("Upload your filled Excel file", type=["xlsx"])
                     if uploaded_file:
                         questions_from_excel = process_excel_upload(uploaded_file)
