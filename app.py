@@ -456,6 +456,10 @@ else:
         if not supabase:
             st.stop()
         
+        # Inicializar estado para controlar a criação da reunião
+        if 'meeting_created' not in st.session_state:
+            st.session_state['meeting_created'] = None
+
         with st.form("create_meeting_form"):
             st.subheader("Create New Meeting")
             meeting_name = st.text_input("Meeting Name")
@@ -478,17 +482,27 @@ else:
                             success = create_meeting_table(supabase, table_name, meeting_name, max_number, selected_form_ids)
                             if success:
                                 participant_link = generate_participant_link(table_name, mode="participant")
+                                st.session_state['meeting_created'] = {
+                                    "name": meeting_name,
+                                    "link": participant_link,
+                                    "table": table_name
+                                }
                                 st.success(f"Meeting '{meeting_name}' created successfully!")
-                                st.markdown("**Participant Link:**")
-                                if st.button("Share Meeting", key="share_meeting"):
-                                    st.code(participant_link, language="text")
-                                st.session_state["selected_table"] = table_name
-                                st.session_state["page"] = "Share Meeting Link"
-                                st.rerun()
                             else:
                                 st.error("Failed to create the meeting.")
                 else:
                     st.warning("Please enter a name for the meeting.")
+
+        # Exibir link de compartilhamento fora do formulário
+        if st.session_state.get('meeting_created'):
+            st.markdown("**Participant Link:**")
+            if st.button("Share Meeting", key="share_meeting_unique"):
+                st.code(st.session_state['meeting_created']['link'], language="text")
+            if st.button("Go to Share Page", key="go_to_share_meeting"):
+                st.session_state["selected_table"] = st.session_state['meeting_created']['table']
+                st.session_state["page"] = "Share Meeting Link"
+                st.session_state['meeting_created'] = None
+                st.rerun()
         
         st.subheader("Existing Meetings")
         meetings = get_available_meetings(supabase)
